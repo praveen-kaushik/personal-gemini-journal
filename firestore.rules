@@ -1,0 +1,36 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{uid} {
+      allow read: if isOwner(uid);
+      allow create, update: if isOwner(uid) && request.resource.data.uid == uid;
+      allow delete: if isOwner(uid);
+
+      match /conversations/{conversationId} {
+        allow read: if isOwner(uid);
+        allow create: if isOwner(uid) && request.resource.data.uid == uid;
+        allow update: if isOwner(uid) && resource.data.uid == uid && request.resource.data.uid == uid;
+        allow delete: if isOwner(uid) && resource.data.uid == uid;
+
+        match /messages/{messageId} {
+          allow read: if isOwner(uid);
+          allow create: if isOwner(uid) && request.resource.data.uid == uid;
+          allow update: if isOwner(uid) && resource.data.uid == uid && request.resource.data.uid == uid;
+          allow delete: if isOwner(uid) && resource.data.uid == uid;
+        }
+      }
+
+      match /insights/{insightId} {
+        allow read: if isOwner(uid);
+        allow create: if isOwner(uid) && request.resource.data.uid == uid;
+        allow update: if isOwner(uid) && resource.data.uid == uid && request.resource.data.uid == uid;
+        allow delete: if isOwner(uid) && resource.data.uid == uid;
+      }
+    }
+
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+  }
+}
