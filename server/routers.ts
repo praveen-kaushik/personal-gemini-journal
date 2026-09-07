@@ -36,27 +36,27 @@ export const appRouter = router({
     }),
   }),
   journal: router({
-    createConversation: protectedProcedure.input(z.object({ title: z.string().trim().min(1).max(180).default("Untitled constellation") })).mutation(({ ctx, input }) => createConversation(userId(ctx), input.title, ctx.user?.openId)),
-    conversations: protectedProcedure.query(({ ctx }) => listConversations(userId(ctx), ctx.user?.openId)),
-    conversation: protectedProcedure.input(conversationInput).query(({ ctx, input }) => getConversation(userId(ctx), input.conversationId, ctx.user?.openId)),
+    createConversation: protectedProcedure.input(z.object({ title: z.string().trim().min(1).max(180).default("Untitled constellation") })).mutation(({ ctx, input }) => createConversation(userId(ctx), input.title, ctx.firebaseUid)),
+    conversations: protectedProcedure.query(({ ctx }) => listConversations(userId(ctx), ctx.firebaseUid)),
+    conversation: protectedProcedure.input(conversationInput).query(({ ctx, input }) => getConversation(userId(ctx), input.conversationId, ctx.firebaseUid)),
     respond: protectedProcedure.input(messageInput).mutation(async ({ ctx, input }) => {
       const uid = userId(ctx);
-      const current = await getConversation(uid, input.conversationId, ctx.user?.openId);
+      const current = await getConversation(uid, input.conversationId, ctx.firebaseUid);
       if (!current.conversation) throw new TRPCError({ code: "NOT_FOUND", message: "Conversation not found." });
-      await addMessage(uid, input.conversationId, "user", input.content, ctx.user?.openId);
+      await addMessage(uid, input.conversationId, "user", input.content, ctx.firebaseUid);
       const history: Array<{ role: "user" | "assistant"; content: string }> = [...current.messages, { role: "user" as const, content: input.content }].slice(-20).map(message => ({ role: message.role as "user" | "assistant", content: message.content }));
       const response = await secureInvokeLLM({ messages: [{ role: "system", content: securitySystem }, ...history] });
       const answer = textOf(response);
-      await addMessage(uid, input.conversationId, "assistant", answer, ctx.user?.openId);
+      await addMessage(uid, input.conversationId, "assistant", answer, ctx.firebaseUid);
       const summary = await secureInvokeLLM({ messages: [{ role: "system", content: "Summarize this private journal exchange in one calm sentence. Do not add facts." }, { role: "user", content: history.map(m => `${m.role}: ${m.content}`).join("\n") }] });
-      await saveSummary(uid, input.conversationId, textOf(summary), ctx.user?.openId);
+      await saveSummary(uid, input.conversationId, textOf(summary), ctx.firebaseUid);
       return { answer };
     }),
-    latestInsight: protectedProcedure.query(({ ctx }) => latestInsight(userId(ctx), ctx.user?.openId)),
+    latestInsight: protectedProcedure.query(({ ctx }) => latestInsight(userId(ctx), ctx.firebaseUid)),
     reflect: protectedProcedure.mutation(async ({ ctx }) => {
       const uid = userId(ctx);
-      const conversations = await listConversations(uid, ctx.user?.openId);
-      const source = (await Promise.all(conversations.slice(0, 12).map(c => getConversation(uid, c.id, ctx.user?.openId)))).flatMap(item => item.messages).slice(-80);
+      const conversations = await listConversations(uid, ctx.firebaseUid);
+      const source = (await Promise.all(conversations.slice(0, 12).map(c => getConversation(uid, c.id, ctx.firebaseUid)))).flatMap(item => item.messages).slice(-80);
       if (source.length < 2) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Write a little more first; your constellation needs a few stars to find a pattern." });
       const response = await secureInvokeLLM({
         messages: [
@@ -67,7 +67,7 @@ export const appRouter = router({
       });
       let parsed: { themes: string[]; reflection: string; followUpPrompt: string };
       try { parsed = JSON.parse(textOf(response)); } catch { throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Reflection formatting failed safely." }); }
-      await saveInsight(uid, parsed.themes.join(" · "), parsed.reflection, parsed.followUpPrompt, ctx.user?.openId);
+      await saveInsight(uid, parsed.themes.join(" · "), parsed.reflection, parsed.followUpPrompt, ctx.firebaseUid);
       return parsed;
     }),
   }),
