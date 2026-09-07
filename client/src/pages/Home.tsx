@@ -15,7 +15,19 @@ const suggestedPrompts = ["What is asking for my attention lately?", "Help me ex
 
 export default function Home() {
   const { user, loading, isAuthenticated, logout } = useAuth();
-  const signIn = async () => { try { if (firebaseReady()) { await signInWithFirebase(); } else startLogin(); } catch (error) { toast.error(error instanceof Error ? error.message : "Sign-in could not be completed."); } };
+  const signIn = async () => { try { if (firebaseReady()) { await signInWithFirebase(); } else startLogin(); } catch (error) { toast.error(error instanceof Error ? error.message : "Sign-in could not be completed."); } 
+  const createConversation = trpc.journal.createConversation.useMutation({ 
+  onSuccess: (id) => { 
+    if (id) {
+      setConversationId(id); 
+      setMessages([]); // Clear local temporary messages
+      conversations.refetch();
+      toast.success("New constellation started.");
+    } else {
+      toast.error("Failed to sync observatory session.");
+    }
+  },
+  onError: (error) => toast.error(`Error: ${error.message}`)});};
   const [conversationId, setConversationId] = useState<number | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const conversations = trpc.journal.conversations.useQuery(undefined, { enabled: isAuthenticated });
@@ -26,13 +38,21 @@ export default function Home() {
   const reflect = trpc.journal.reflect.useMutation({ onSuccess: () => { latestInsight.refetch(); toast.success("A new constellation is ready."); }, onError: (error) => toast.error(error.message) });
 
   const displayMessages = useMemo(() => current.data?.messages?.length ? current.data.messages.map(m => ({ role: m.role, content: m.content } as Message)) : messages, [current.data, messages]);
-  const begin = () => createConversation.mutate({ title: "New constellation" });
+  const begin = () => {
+  if (createConversation.isPending) return;
+  createConversation.mutate({ title: "New constellation" });};
   const send = (content: string) => {
-    if (!conversationId) { toast.message("Start a new constellation first."); return; }
-    const next = [...displayMessages, { role: "user" as const, content }];
-    setMessages(next);
-    respond.mutate({ conversationId, content });
-  };
+  // Check both the state and the mutation status
+  if (!conversationId) { 
+    toast.error("Start a new constellation first.", {
+      description: "Click the 'New constellation' button above to begin.",
+    }); 
+    return; 
+  }
+  
+  const next = [...displayMessages, { role: "user" as const, content }];
+  setMessages(next);
+  respond.mutate({ conversationId, content });};
 
   if (loading) return <div className="cosmic-shell flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-cyan-300" /></div>;
   if (!isAuthenticated) return <div className="cosmic-shell"><div className="stars" /><main className="relative mx-auto flex min-h-screen max-w-6xl items-center px-6 py-14"><div className="grid w-full items-center gap-12 lg:grid-cols-[1.05fr_.95fr]"><section className="space-y-8"><Badge className="border-cyan-300/30 bg-cyan-300/10 text-cyan-200">PRIVATE AI JOURNAL</Badge><div><p className="eyebrow">A quiet place between thoughts</p><h1 className="cosmic-title mt-3">Make space for<br /><span>what is emerging.</span></h1><p className="mt-6 max-w-xl text-lg leading-8 text-slate-300">A private cosmic observatory for honest brainstorming, reflective journaling, and the small signals that become clear over time.</p></div><Button onClick={signIn} className="glow-button h-12 rounded-full px-7 text-base">Enter your observatory <ArrowRight className="ml-2 h-4 w-4" /></Button><div className="flex items-center gap-3 text-sm text-slate-400"><ShieldCheck className="h-4 w-4 text-cyan-300" /> Your journal is designed around private, user-scoped access.</div></section><div className="planet-card relative mx-auto h-[420px] w-full max-w-[460px]"><div className="planet-glow" /><div className="planet-orb"><div className="orb-ring ring-one" /><div className="orb-ring ring-two" /><div className="orb-shine" /></div><div className="flare flare-one" /><div className="flare flare-two" /><div className="orbit-label label-one">REFLECT</div><div className="orbit-label label-two">IMAGINE</div></div></div></main></div>;
