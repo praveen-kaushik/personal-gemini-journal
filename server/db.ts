@@ -94,3 +94,20 @@ export async function latestInsight(userId: number, firebaseUid?: string) {
   if (!db) return undefined;
   return (await db.select().from(journalInsights).where(eq(journalInsights.userId, userId)).orderBy(desc(journalInsights.createdAt)).limit(1))[0];
 }
+
+export async function createConversation(userId: number, title: string, firebaseUid?: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+
+  // MySQL returns a ResultSetHeader in result[0]
+  const [result] = await db.insert(journalConversations).values({ userId, title });
+  
+  const id = result.insertId; // Correct way to get auto-increment ID in MySQL
+
+  if (id) {
+    // Ensure we mirror to Firestore using the confirmed ID
+    await mirrorConversation(firebaseUid, id, title);
+  }
+  
+  return id;
+}
