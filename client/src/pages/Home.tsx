@@ -15,7 +15,7 @@ const suggestedPrompts = ["What is asking for my attention lately?", "Help me ex
 
 export default function Home() {
   const { user, loading, isAuthenticated, logout } = useAuth();
-  const signIn = async () => { try { if (firebaseReady()) { await signInWithFirebase(); window.location.reload(); } else startLogin(); } catch (error) { toast.error(error instanceof Error ? error.message : "Sign-in could not be completed."); } };
+  const signIn = async () => { try { if (firebaseReady()) { await signInWithFirebase(); } else startLogin(); } catch (error) { toast.error(error instanceof Error ? error.message : "Sign-in could not be completed."); } };
   const [conversationId, setConversationId] = useState<number | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const conversations = trpc.journal.conversations.useQuery(undefined, { enabled: isAuthenticated });

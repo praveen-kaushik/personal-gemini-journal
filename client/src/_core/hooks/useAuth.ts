@@ -1,5 +1,6 @@
 import { startLogin } from "@/const";
 import { trpc } from "@/lib/trpc";
+import { subscribeFirebaseAuth } from "@/lib/firebase";
 import { TRPCClientError } from "@trpc/client";
 import { useCallback, useEffect, useMemo } from "react";
 
@@ -20,6 +21,12 @@ export function useAuth(options?: UseAuthOptions) {
     retry: false,
     refetchOnWindowFocus: false,
   });
+
+  useEffect(() => {
+    return subscribeFirebaseAuth(() => {
+      void utils.auth.me.invalidate();
+    });
+  }, [utils]);
 
   const logoutMutation = trpc.auth.logout.useMutation({
     onSuccess: () => {
