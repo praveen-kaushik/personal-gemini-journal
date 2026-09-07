@@ -8,13 +8,16 @@ export type TrpcContext = {
   req: CreateExpressContextOptions["req"];
   res: CreateExpressContextOptions["res"];
   user: User | null;
+  firebaseUid?: string;
 };
 
 export async function createContext(opts: CreateExpressContextOptions): Promise<TrpcContext> {
   let user: User | null = null;
+  let firebaseUid: string | undefined;
   const firebaseToken = await verifyFirebaseBearerToken(opts.req.headers.authorization);
   if (firebaseToken) {
     const openId = firebaseToken.uid;
+    firebaseUid = openId;
     await upsertUser({ openId, name: firebaseToken.name ?? null, email: firebaseToken.email ?? null, loginMethod: "firebase" });
     user = (await getUserByOpenId(openId)) ?? null;
   }
@@ -22,5 +25,5 @@ export async function createContext(opts: CreateExpressContextOptions): Promise<
     try { user = await sdk.authenticateRequest(opts.req); }
     catch { user = null; }
   }
-  return { req: opts.req, res: opts.res, user };
+  return { req: opts.req, res: opts.res, user, firebaseUid };
 }
